@@ -27,56 +27,24 @@ carta(S-N):-
     numero(S),
     palo(N).
 
-:- use_module(library(clpfd)).
-%:- use_module(library(dcgs)).
-:- use_module(library(lists)).
-:- use_module(library(random)).
-palo(oro).
-palo(copa).
-palo(espada).
-palo(basto).
-
-% defino las cartas 
-numero(12).
-numero(11).
-numero(10).
-numero(7).
-numero(6).
-numero(5).
-numero(4).
-numero(3).
-numero(2).
-numero(1).
-
-%defino carta numero y palo
-carta(S-N):-
-    numero(S),
-    palo(N).
-
-
 % defino puntos del truco
 % los puntos son por el nivel de la jerarquia... 
-puntos_truco(1-espada, 13).
-puntos_truco(1-basto, 12).
-puntos_truco(7-espada, 11).
-puntos_truco(7-oro, 10).
-puntos_truco(3-_, 9).
-puntos_truco(2-_, 8).
-puntos_truco(1-copa, 7).
-puntos_truco(1-oro, 7).
-puntos_truco(12-_, 6).
-puntos_truco(11-_, 5).
-puntos_truco(10-_, 4).
+puntos_truco(1-espada, 14).
+puntos_truco(1-basto, 13).
+puntos_truco(7-espada, 12).
+puntos_truco(7-oro, 11).
+puntos_truco(3-_, 10).
+puntos_truco(2-_, 9).
+puntos_truco(1-copa, 8).
+puntos_truco(1-oro, 8).
+puntos_truco(12-_, 7).
+puntos_truco(11-_, 6).
+puntos_truco(10-_, 5).
+puntos_truco(7-copa, 4).
+puntos_truco(7-basto, 4).
 puntos_truco(6-_, 3).
 puntos_truco(5-_, 2).
 puntos_truco(4-_, 1).
-
-
-carta_ganadora(C1,C2):-
-    puntos_carta_truco(C1, Puntos1),
-    puntos_carta_truco(C2, Puntos2),
-    Puntos1 > Puntos2. 
-
 
 %% cargo en el estado el conjunto de cartas posibles como lista
 reiniciar -->
@@ -144,12 +112,12 @@ barajar_rondas -->
 	barajar_a_jugador,
 	barajar_a_jugador.
 
-barajar -->
+barajar_a_jugador -->
     estado(S0, S),
     {
 	select(jugadores(Jugadores), S0, S1), 
 	select(mazo(Cartas), S1, S2),
-	barajar(Jugadores, Jugadores1, Cartas, Cartas1), % genero el nuevo estado de jugador y baraja
+	barajar_a_jugador(Jugadores, Jugadores1, Cartas, Cartas1), % genero el nuevo estado de jugador y baraja
 	S = [jugadores(Jugadores1), mazo(Cartas1)|S2] % nuevo estado
     }.
 
@@ -175,36 +143,35 @@ barajar_a_jugador([P|Ps], [P1|Ps1], [C|Cs], Cs1) :-
 %% DIVIDIR EN 3 RONDAS||  1 JUGADOR JUEGA UNA CARTA -> 1 JUGADOR GANA -> ASIGNO PUNTO --> MEZCLA --> SIGUIE SIGUIENTE RONDA --> MIENTRAS 2 RONDAS
 
 
+jugadores(P0, P), [S] -->
+    [S0],
+    { select(jugadores(P0), S0, S1), S = [jugadores(P)|S1] }.
 
 jugar_rondas -->  %% CORREGIR _ DEFINIR RESTRICCION DE QUE NINGUN JUGADOR GANO MAS DE 1 MANO
 	jugadores(P, P),
-    { P = [player(_, _, X)|_], X > 1} %% un jugador gano mas de una mano   
+    { P = [jugador(_, _, X)|_], length(X, N), N > 1}. %% un jugador gano mas de una mano   
 jugar_rondas -->
     jugadores(P, P),
-    { P = [player(_, _, X)|_], X < 2 }, %% ninguno gano mas de 2 manos
+    { P = [jugador(_, _, X)|_], length(X, N), N < 2 }, %% ninguno gano mas de 2 manos
     jugar_ronda,
-    jugar_rondas.
+    jugar_rondas. 
 
 jugar_ronda -->
-    state(S),
-    players(P0, P2),
+    %estado(S),
+    jugadores(P0, P2),
+    jugar_jugadores(P0, Cartas),
     {
-	member(trump(Trump), S),
-	format("Brisca round~nTrump is: ~a~n~n", [Trump])
-    },
-    play_players(P0, Cards),
-    {
-	round_winner(Cards, Trump, WinnerCard),
-	maplist(remove_card, P0, Cards, P1),
-	nth0(N, Cards, WinnerCard),
+    format("Siguiente ronda~n"),
+	ganador_ronda(Cartas, WinnerCard),
+	maplist(quitar_carta, P0, Cartas, P1),
+	nth0(N, Cartas, WinnerCard),
 	nth0(N, P1, WinnerPlayer0),
 	append(PBefore, [WinnerPlayer0|PAfter], P1),
-	WinnerPlayer0 = player(WinnerName, C, W0),
-	format("Winner card is ~w from ~w~n", [WinnerCard, WinnerName]),
-	append(W0, Cards, W1),
-	append([player(WinnerName, C, W1)|PAfter], PBefore, P2)
-    },
-    barajar_a_jugador.
+	WinnerPlayer0 = jugador(WinnerName, C, W0),
+	append(W0,[WinnerCard], W1),
+	append([jugador(WinnerName, C, W1)|PAfter], PBefore, P2),
+    format("Winner card is ~w from ~w~n", [WinnerCard, WinnerName])
+    }.
 
 quitar_carta(P0, C, P) :-
     P0 = jugador(N, C0, W),
@@ -212,7 +179,7 @@ quitar_carta(P0, C, P) :-
     P = jugador(N, C1, W).
 
 jugar_jugadores([], []) --> [].
-jugar_jugadores([P|Ps], [C|Cs]) -->
+jugar_jugadores([P|Ps], [C|Cs]) --> % lista de jugadores
     {
 	P = jugador(Name, SelectableCards, _),
 	format("It's ~a's turn!~n", [Name]),
@@ -221,3 +188,37 @@ jugar_jugadores([P|Ps], [C|Cs]) -->
 	member(C, SelectableCards)
     },
     jugar_jugadores(Ps, Cs).
+
+mejor_carta(X, Y, Z) :-
+    ( carta_ganadora(X, Y) ->
+        Z = X;
+        Z = Y
+    ).
+ganador_ronda(Cartas, WinnerCard) :-
+    reverse(Cartas, [FirstCard|RestCards]),
+    foldl(mejor_carta, RestCards, FirstCard, WinnerCard).
+
+carta_ganadora(C1,C2):-
+    puntos_carta_truco(C1, Puntos1),
+    puntos_carta_truco(C2, Puntos2),
+    Puntos1 > Puntos2. 
+
+
+mostrar_puntos -->
+    jugadores(P, P),
+    {
+	maplist(mostrar_puntos_jugador, P)
+    }.
+
+puntos_carta(Cartas, Puntos) :-
+    phrase(puntos_carta_(Puntos), Cartas).
+
+puntos_carta_(0) --> [].
+puntos_carta_(X) -->
+    [Carta],
+    { puntos_carta(Carta, X0), #X #= #X0 + #X1 },
+    puntos_carta_(X1).
+    
+mostrar_puntos_jugador(jugador(Nombre, _, CartasGanadas)) :-
+puntos_carta(CartasGanadas, Puntos),
+format("Score of ~w is ~d~n", [Nombre, Puntos]).
